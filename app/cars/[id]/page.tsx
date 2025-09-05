@@ -28,9 +28,11 @@ import { FavoriteButton } from '@/components/favorite-button'
 import { ShareButton } from '@/components/share-button'
 import { ReportButton } from '@/components/report-button'
 import { ViewTracker } from '@/components/view-tracker'
+import { serializeForClient } from '@/lib/utils' // Add serialization import
+import { auth } from '@/lib/auth' // Add auth import
 import type { Metadata } from 'next'
 
-async function getCarDetails(id: string) {
+async function getCarDetails(id: string, userId?: string) {
   const car = await prisma.car.findUnique({
     where: { id },
     include: {
@@ -43,7 +45,12 @@ async function getCarDetails(id: string) {
       seller: true,
       _count: {
         select: { favorites: true }
-      }
+      },
+      // Include user's favorite status if logged in
+      favorites: userId ? {
+        where: { userId },
+        select: { id: true }
+      } : false
     }
   })
 
@@ -64,8 +71,8 @@ async function getCarDetails(id: string) {
             { district: car.district },
             {
               price: {
-                gte: Number(car.price) * 0.8,
-                lte: Number(car.price) * 1.2
+                gte: car.price.mul(0.8),
+                lte: car.price.mul(1.2)
               }
             }
           ]
@@ -80,7 +87,12 @@ async function getCarDetails(id: string) {
       seller: true,
       _count: {
         select: { favorites: true }
-      }
+      },
+      // Include user's favorite status for similar cars too
+      favorites: userId ? {
+        where: { userId },
+        select: { id: true }
+      } : false
     },
     orderBy: { createdAt: 'desc' },
     take: 4
@@ -89,8 +101,16 @@ async function getCarDetails(id: string) {
   return { car, similarCars }
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const result = await getCarDetails(params.id)
+export async function generateMetadata({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> // Changed to Promise
+}): Promise<Metadata> {
+  // Await params before using
+  const resolvedParams = await params
+  const { id } = resolvedParams
+
+  const result = await getCarDetails(id)
   
   if (!result) {
     return {
@@ -120,8 +140,20 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   }
 }
 
-export default async function CarDetailPage({ params }: { params: { id: string } }) {
-  const result = await getCarDetails(params.id)
+export default async function CarDetailPage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> // Changed to Promise
+}) {
+  // Await params before using
+  const resolvedParams = await params
+  const { id } = resolvedParams
+
+  // Get current user for favorite status
+  const session = await auth()
+  const userId = session?.user?.id
+
+  const result = await getCarDetails(id, userId)
   
   if (!result) {
     notFound()
@@ -129,6 +161,21 @@ export default async function CarDetailPage({ params }: { params: { id: string }
 
   const { car, similarCars } = result
   const isExpired = new Date() > car.expiresAt
+
+  // Serialize data for client components
+  const serializedCar = serializeForClient({
+    ...car,
+    isFavorited: car.favorites && car.favorites.length > 0,
+    favorites: undefined // Remove favorites array from response
+  })
+
+  const serializedSimilarCars = similarCars.map(similarCar => 
+    serializeForClient({
+      ...similarCar,
+      isFavorited: similarCar.favorites && similarCar.favorites.length > 0,
+      favorites: undefined
+    })
+  )
 
   return (
     <div className="container py-8 max-w-7xl">
@@ -139,7 +186,7 @@ export default async function CarDetailPage({ params }: { params: { id: string }
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Image Gallery */}
-          <CarImageGallery images={car.images} carName={`${car.make} ${car.model}`} />
+          <CarImageGallery images={serializedCar.images} carName={`${car.make} ${car.model}`} />
 
           {/* Car Details Card */}
           <Card>
@@ -158,13 +205,13 @@ export default async function CarDetailPage({ params }: { params: { id: string }
                     )}
                   </div>
                   <p className="text-3xl font-bold text-primary">
-                    {formatMWK(Number(car.price))}
+                    {formatMWK(serializedCar.price)} {/* Use serialized price */}
                   </p>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <FavoriteButton carId={car.id} />
-                  <ShareButton car={car} />
+                  <FavoriteButton carId={car.id} isFavorited={serializedCar.isFavorited} />
+                  <ShareButton car={serializedCar} />
                   <ReportButton carId={car.id} />
                 </div>
               </div>
@@ -274,13 +321,13 @@ export default async function CarDetailPage({ params }: { params: { id: string }
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Listed on</span>
                 <span className="text-sm font-medium">
-                  {car.createdAt.toLocaleDateString()}
+                  {new Date(serializedCar.createdAt).toLocaleDateString()} {/* Use serialized date */}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Expires on</span>
                 <span className={`text-sm font-medium ${isExpired ? 'text-red-500' : ''}`}>
-                  {car.expiresAt.toLocaleDateString()}
+                  {new Date(serializedCar.expiresAt).toLocaleDateString()} {/* Use serialized date */}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -311,9 +358,9 @@ export default async function CarDetailPage({ params }: { params: { id: string }
       </div>
 
       {/* Similar Cars */}
-      {similarCars.length > 0 && (
+      {serializedSimilarCars.length > 0 && (
         <div className="mt-12">
-          <SimilarCars cars={similarCars} />
+          <SimilarCars cars={serializedSimilarCars} />
         </div>
       )}
     </div>
