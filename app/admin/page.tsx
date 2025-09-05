@@ -16,6 +16,7 @@ import {
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { formatMWK, isExpiringSoon } from '@/lib/constants'
+import { serializeForClient, decimalToNumber } from '@/lib/utils' // Add serialization imports
 
 async function getAdminData() {
   const [
@@ -69,6 +70,7 @@ async function getAdminData() {
     })
   ])
 
+  // Serialize all data to handle Decimals
   return {
     stats: {
       totalCars,
@@ -77,11 +79,11 @@ async function getAdminData() {
       totalSellers,
       totalViews: totalViews._sum.viewCount || 0,
       totalFavorites,
-      avgPrice: avgPrice._avg.price || 0
+      avgPrice: decimalToNumber(avgPrice._avg.price) // Convert Decimal to number
     },
-    recentCars,
-    expiringCars,
-    topViewedCars
+    recentCars: recentCars.map(car => serializeForClient(car)), // Serialize cars
+    expiringCars: expiringCars.map(car => serializeForClient(car)), // Serialize cars
+    topViewedCars: topViewedCars.map(car => serializeForClient(car)) // Serialize cars
   }
 }
 
@@ -162,7 +164,7 @@ export default async function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatMWK(data.stats.avgPrice)}
+              {formatMWK(data.stats.avgPrice)} {/* Now using serialized number */}
             </div>
             <p className="text-xs text-muted-foreground">
               Active listings
@@ -196,7 +198,7 @@ export default async function AdminDashboard() {
                       {car.make} {car.model}
                     </Link>
                     <p className="text-sm text-muted-foreground">
-                      {car.seller.name} • {formatMWK(car.price)}
+                      {car.seller.name} • {formatMWK(car.price)} {/* Now using serialized number */}
                     </p>
                   </div>
                   <Badge variant={
@@ -240,7 +242,7 @@ export default async function AdminDashboard() {
                         {car.make} {car.model}
                       </Link>
                       <p className="text-sm text-muted-foreground">
-                        Expires {new Date(car.expiresAt).toLocaleDateString()}
+                        Expires {new Date(car.expiresAt).toLocaleDateString()} {/* Using serialized date */}
                       </p>
                     </div>
                     <Button asChild size="sm" variant="outline">
@@ -289,7 +291,7 @@ export default async function AdminDashboard() {
                       {car._count.favorites} favorites
                     </div>
                     <div className="text-sm font-medium">
-                      {formatMWK(car.price)}
+                      {formatMWK(car.price)} {/* Now using serialized number */}
                     </div>
                   </div>
                 </div>

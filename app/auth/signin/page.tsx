@@ -113,8 +113,8 @@ export default function SignInPage() {
                         />
             </div>
             <div className="flex flex-col">
-              <span className="text-2xl font-bold leading-none">CarMarket</span>
-              <span className="text-sm text-muted-foreground leading-none">Malawi</span>
+              <span className="text-2xl font-bold leading-none">Velocity</span>
+              <span className="text-sm text-start text-muted-foreground leading-none">Autotrader</span>
             </div>
           </Link>
         </div>

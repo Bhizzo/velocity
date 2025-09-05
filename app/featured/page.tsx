@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Star, Sparkles } from 'lucide-react'
 import Link from 'next/link'
+import { serializeForClient } from '@/lib/utils' // Add serialization import
+import { auth } from '@/lib/auth' // Add auth import
 
 export const metadata = {
   title: 'Featured Cars | Car Market Malawi',
   description: 'Browse our handpicked selection of premium vehicles from trusted sellers.',
 }
 
-async function getFeaturedCars() {
+async function getFeaturedCars(userId?: string) {
   return await prisma.car.findMany({
     where: {
       featured: true,
@@ -26,7 +28,12 @@ async function getFeaturedCars() {
       seller: true,
       _count: {
         select: { favorites: true }
-      }
+      },
+      // Include user's favorite status if logged in
+      favorites: userId ? {
+        where: { userId },
+        select: { id: true }
+      } : false
     },
     orderBy: [
       { createdAt: 'desc' }
@@ -35,7 +42,20 @@ async function getFeaturedCars() {
 }
 
 export default async function FeaturedPage() {
-  const featuredCars = await getFeaturedCars()
+  // Get current user for favorite status
+  const session = await auth()
+  const userId = session?.user?.id
+
+  const featuredCars = await getFeaturedCars(userId)
+
+  // Serialize cars data for client components
+  const serializedFeaturedCars = featuredCars.map(car => 
+    serializeForClient({
+      ...car,
+      isFavorited: car.favorites && car.favorites.length > 0,
+      favorites: undefined // Remove favorites array from response
+    })
+  )
 
   return (
     <div className="container py-8">
@@ -58,14 +78,14 @@ export default async function FeaturedPage() {
             Premium Selection
           </Badge>
           <span className="text-sm text-muted-foreground">
-            {featuredCars.length} featured cars available
+            {serializedFeaturedCars.length} featured cars available
           </span>
         </div>
       </div>
 
-      {featuredCars.length > 0 ? (
+      {serializedFeaturedCars.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredCars.map((car) => (
+          {serializedFeaturedCars.map((car) => (
             <CarCard 
               key={car.id} 
               car={car} 
