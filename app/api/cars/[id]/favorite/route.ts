@@ -85,18 +85,19 @@ export async function POST(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: 'Already favorited' },
-        { status: 400 }
-      )
-    }
-    console.error('Error adding favorite:', error)
+  // Check if it's a Prisma error with a code property
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: 'Already favorited' },
+      { status: 400 }
     )
   }
+  console.error('Error adding favorite:', error)
+  return NextResponse.json(
+    { error: 'Internal server error' },
+    { status: 500 }
+  )
+}
 }
 
 export async function DELETE(
