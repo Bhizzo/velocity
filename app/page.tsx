@@ -1,101 +1,167 @@
-import Image from "next/image";
+import { Suspense } from 'react'
+import { HeroSection } from '@/components/hero-section'
+import { FeaturedCars } from '@/components/featured-cars'
+import { SearchSection } from '@/components/search-section'
+import { StatsSection } from '@/components/stats-section'
+import { RecentCars } from '@/components/recent-cars'
+import { prisma } from '@/lib/prisma'
+import { CarGridSkeleton } from '@/components/car-grid-skeleton'
+import { serializeCars, serializeForClient } from '@/lib/utils'
+import { auth } from '@/lib/auth' // Add auth import
 
-export default function Home() {
+async function getHomeData() {
+  // Get current user session for favorite status
+  const session = await auth()
+  const userId = session?.user?.id
+
+  const [featuredCars, recentCars, stats] = await Promise.all([
+    prisma.car.findMany({
+      where: { 
+        featured: true, 
+        status: 'ACTIVE',
+        expiresAt: { gt: new Date() }
+      },
+      include: {
+        images: { 
+          where: { isPrimary: true },
+          take: 1 
+        },
+        seller: true,
+        _count: {
+          select: { favorites: true }
+        },
+        // Include user's favorite status
+        favorites: userId ? {
+          where: { userId },
+          select: { id: true } // Just need to know if it exists
+        } : false
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 8
+    }),
+    prisma.car.findMany({
+      where: { 
+        status: 'ACTIVE',
+        expiresAt: { gt: new Date() }
+      },
+      include: {
+        images: { 
+          where: { isPrimary: true },
+          take: 1 
+        },
+        seller: true,
+        _count: {
+          select: { favorites: true }
+        },
+        // Include user's favorite status
+        favorites: userId ? {
+          where: { userId },
+          select: { id: true } // Just need to know if it exists
+        } : false
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6
+    }),
+    prisma.car.aggregate({
+      where: { 
+        status: 'ACTIVE',
+        expiresAt: { gt: new Date() }
+      },
+      _count: { id: true },
+      _avg: { price: true }
+    })
+  ])
+
+  const totalSellers = await prisma.seller.count()
+
+  // Transform and serialize data, adding favorite status
+  const transformCarWithFavorites = (car: any) => {
+    const serializedCar = serializeForClient(car)
+    return {
+      ...serializedCar,
+      isFavorited: car.favorites && car.favorites.length > 0,
+      favorites: undefined // Remove the favorites array from response
+    }
+  }
+
+  return {
+    featuredCars: featuredCars.map(transformCarWithFavorites),
+    recentCars: recentCars.map(transformCarWithFavorites),
+    stats: serializeForClient({
+      totalCars: stats._count.id,
+      averagePrice: stats._avg.price,
+      totalSellers
+    })
+  }
+}
+
+export default async function HomePage() {
+  const { featuredCars, recentCars, stats } = await getHomeData()
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
+      <HeroSection />
+      
+      {/* Search Section */}
+      <SearchSection />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* Stats Section */}
+      <StatsSection stats={stats} />
+
+      {/* Featured Cars Section */}
+      {featuredCars.length > 0 && (
+        <section className="py-16 bg-muted/30">
+          <div className="container">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold tracking-tight mb-4">
+                Featured Cars
+              </h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                Handpicked premium vehicles from trusted sellers across Malawi
+              </p>
+            </div>
+            <Suspense fallback={<CarGridSkeleton />}>
+              <FeaturedCars cars={featuredCars} />
+            </Suspense>
+          </div>
+        </section>
+      )}
+
+      {/* Recent Cars Section */}
+      {recentCars.length > 0 && (
+        <section className="py-16">
+          <div className="container">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight mb-2">
+                  Latest Arrivals
+                </h2>
+                <p className="text-muted-foreground">
+                  Fresh listings from our marketplace
+                </p>
+              </div>
+            </div>
+            <Suspense fallback={<CarGridSkeleton />}>
+              <RecentCars cars={recentCars} />
+            </Suspense>
+          </div>
+        </section>
+      )}
+
+      {/* CTA Section */}
+      <section className="py-16 gradient-primary">
+        <div className="container text-center">
+          <div className="max-w-3xl mx-auto text-white">
+            <h2 className="text-3xl font-bold mb-4">
+              Ready to Find Your Perfect Car?
+            </h2>
+            <p className="text-lg mb-8 text-white/90">
+              Browse our extensive collection of quality vehicles from trusted sellers across all 28 districts of Malawi.
+            </p>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </section>
     </div>
-  );
+  )
 }

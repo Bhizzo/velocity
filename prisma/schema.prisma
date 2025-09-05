@@ -1,0 +1,168 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider  = "postgresql"
+    url       = env("DATABASE_URL")
+    directUrl = env("DIRECT_URL")
+}
+
+model Account {
+    id                String  @id @default(cuid())
+    userId            String
+    type              String
+    provider          String
+    providerAccountId String
+    refresh_token     String? @db.Text
+    access_token      String? @db.Text
+    expires_at        Int?
+    token_type        String?
+    scope             String?
+    id_token          String? @db.Text
+    session_state     String?
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+    @@map("accounts")
+}
+
+model Session {
+    id           String   @id @default(cuid())
+    sessionToken String   @unique
+    userId       String
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@map("sessions")
+}
+
+model VerificationToken {
+    identifier String
+    token      String   @unique
+    expires    DateTime
+
+    @@unique([identifier, token])
+    @@map("verification_tokens")
+}
+
+model User {
+    id            String    @id @default(cuid())
+    email         String    @unique
+    name          String?
+    image         String?
+    password      String?
+    emailVerified DateTime?
+    role          UserRole  @default(USER)
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    accounts Account[]
+    sessions Session[]
+
+    favorites CarFavorite[]
+
+    @@map("users")
+}
+
+model Seller {
+    id          String   @id @default(cuid())
+    name        String
+    email       String   @unique
+    phone       String
+    location    String
+    description String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    cars Car[]
+
+    @@map("sellers")
+}
+
+model Car {
+    id           String       @id @default(cuid())
+    make         String
+    model        String
+    year         Int
+    price        Decimal      @db.Decimal(12, 2)
+    mileage      Int?
+    color        String?
+    transmission Transmission
+    fuelType     FuelType
+    description  String?
+    district     String
+    featured     Boolean      @default(false)
+    status       CarStatus    @default(ACTIVE)
+    viewCount    Int          @default(0)
+    likeCount    Int          @default(0)
+    expiresAt    DateTime
+    createdAt    DateTime     @default(now())
+    updatedAt    DateTime     @updatedAt
+
+    sellerId String
+    seller   Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+    images    CarImage[]
+    favorites CarFavorite[]
+
+    @@index([status, featured, expiresAt])
+    @@index([make, model])
+    @@index([price])
+    @@index([district])
+    @@index([createdAt])
+    @@map("cars")
+}
+
+model CarImage {
+    id        String   @id @default(cuid())
+    url       String
+    key       String // Cloudflare R2 object key
+    isPrimary Boolean  @default(false)
+    createdAt DateTime @default(now())
+
+    carId String
+    car   Car    @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+    @@map("car_images")
+}
+
+model CarFavorite {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    carId String
+    car   Car    @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, carId])
+    @@map("car_favorites")
+}
+
+enum UserRole {
+    USER
+    ADMIN
+}
+
+enum CarStatus {
+    ACTIVE
+    SOLD
+    EXPIRED
+    DRAFT
+}
+
+enum Transmission {
+    MANUAL
+    AUTOMATIC
+    CVT
+}
+
+enum FuelType {
+    PETROL
+    DIESEL
+    HYBRID
+    ELECTRIC
+}
