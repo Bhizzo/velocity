@@ -210,7 +210,7 @@ export default async function CarDetailPage({
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <FavoriteButton carId={car.id} isFavorited={serializedCar.isFavorited} />
+                 <FavoriteButton carId={car.id} />
                   <ShareButton car={serializedCar} />
                   <ReportButton carId={car.id} />
                 </div>
@@ -360,7 +360,7 @@ export default async function CarDetailPage({
       {/* Similar Cars */}
       {serializedSimilarCars.length > 0 && (
         <div className="mt-12">
-          <SimilarCars cars={serializedSimilarCars} />
+          <SimilarCars cars={serializedSimilarCars} currentCarId={car.id} />
         </div>
       )}
     </div>

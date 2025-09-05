@@ -1,4 +1,3 @@
-
 import { Suspense } from 'react'
 import { CarFilters } from '@/components/car-filters'
 import { CarGrid } from '@/components/car-grid'
@@ -51,7 +50,7 @@ async function getFilterOptions() {
 export default async function CarsPage({ 
   searchParams 
 }: { 
-  searchParams: Promise<SearchParams> // Changed to Promise
+  searchParams: Promise<SearchParams>
 }) {
   // Await searchParams before using
   const resolvedSearchParams = await searchParams
@@ -71,7 +70,7 @@ export default async function CarsPage({
         <div className="lg:col-span-1">
           <CarFilters 
             filterOptions={filterOptions}
-            currentFilters={resolvedSearchParams}
+            currentFilters={resolvedSearchParams as Record<string, string | undefined>}
           />
         </div>
 

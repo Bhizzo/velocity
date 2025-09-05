@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Heart, Search } from 'lucide-react'
 import Link from 'next/link'
+import { serializeForClient } from '@/lib/utils' // Add serialization import
 
 export const metadata = {
   title: 'My Favorites | Car Market Malawi',
@@ -38,14 +39,24 @@ export default async function FavoritesPage() {
   const session = await getServerSession(authOptions)
   
   if (!session?.user) {
-    redirect('/api/auth/signin?callbackUrl=/favorites')
+    redirect('/auth/signin?callbackUrl=/favorites') // Updated redirect path
   }
 
   const favorites = await getFavorites(session.user.id)
-  const activeFavorites = favorites.filter(fav => 
+  
+  // Serialize the car data and add favorite status
+  const serializedFavorites = favorites.map(favorite => ({
+    ...favorite,
+    car: serializeForClient({
+      ...favorite.car,
+      isFavorited: true, // All cars in favorites are favorited by definition
+    })
+  }))
+
+  const activeFavorites = serializedFavorites.filter(fav => 
     fav.car.status === 'ACTIVE' && new Date(fav.car.expiresAt) > new Date()
   )
-  const soldOrExpiredFavorites = favorites.filter(fav => 
+  const soldOrExpiredFavorites = serializedFavorites.filter(fav => 
     fav.car.status !== 'ACTIVE' || new Date(fav.car.expiresAt) <= new Date()
   )
 
@@ -61,7 +72,7 @@ export default async function FavoritesPage() {
         </p>
       </div>
 
-      {favorites.length === 0 ? (
+      {serializedFavorites.length === 0 ? (
         <EmptyFavorites />
       ) : (
         <div className="space-y-8">

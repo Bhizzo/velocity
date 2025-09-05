@@ -10,6 +10,8 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { DialogTitle } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { Car, Search, TrendingUp } from 'lucide-react'
 
 interface SearchDialogProps {
@@ -45,6 +47,10 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
+      <VisuallyHidden>
+        <DialogTitle>Search Cars</DialogTitle>
+      </VisuallyHidden>
+      
       <CommandInput
         placeholder="Search cars..."
         value={query}

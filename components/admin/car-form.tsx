@@ -38,19 +38,26 @@ import {
 } from '@/lib/constants'
 import { Loader2, Save, X } from 'lucide-react'
 
+// Define proper types for the enums
+const TransmissionEnum = z.enum(['MANUAL', 'AUTOMATIC', 'CVT'])
+const FuelTypeEnum = z.enum(['PETROL', 'DIESEL', 'HYBRID', 'ELECTRIC'])
+const StatusEnum = z.enum(['ACTIVE', 'SOLD', 'EXPIRED', 'DRAFT'])
+// Create a proper type for districts - handle readonly array properly
+const DistrictEnum = z.enum([...MALAWI_DISTRICTS] as [string, ...string[]])
+
 const carSchema = z.object({
   make: z.string().min(1, 'Make is required'),
   model: z.string().min(1, 'Model is required'),
-  year: z.coerce.number().min(1900, 'Invalid year').max(new Date().getFullYear() + 1, 'Invalid year'),
-  price: z.coerce.number().min(1, 'Price must be greater than 0'),
-  mileage: z.coerce.number().optional(),
+  year: z.number().min(1900, 'Invalid year').max(new Date().getFullYear() + 1, 'Invalid year'),
+  price: z.number().min(1, 'Price must be greater than 0'),
+  mileage: z.number().optional(),
   color: z.string().optional(),
-  transmission: z.enum(['MANUAL', 'AUTOMATIC', 'CVT']),
-  fuelType: z.enum(['PETROL', 'DIESEL', 'HYBRID', 'ELECTRIC']),
+  transmission: TransmissionEnum,
+  fuelType: FuelTypeEnum,
   description: z.string().optional(),
-  district: z.enum(MALAWI_DISTRICTS as any),
+  district: DistrictEnum,
   featured: z.boolean().default(false),
-  status: z.enum(['ACTIVE', 'SOLD', 'EXPIRED', 'DRAFT']).default('ACTIVE'),
+  status: StatusEnum.default('ACTIVE'),
   sellerId: z.string().min(1, 'Seller is required'),
   images: z.array(z.object({
     url: z.string(),
@@ -59,7 +66,32 @@ const carSchema = z.object({
   })).min(1, 'At least one image is required')
 })
 
-type CarFormData = z.infer<typeof carSchema>
+// Create the form schema with proper coercion for form inputs
+const carFormSchema = z.object({
+  make: z.string().min(1, 'Make is required'),
+  model: z.string().min(1, 'Model is required'),
+  year: z.coerce.number().min(1900, 'Invalid year').max(new Date().getFullYear() + 1, 'Invalid year'),
+  price: z.coerce.number().min(1, 'Price must be greater than 0'),
+  mileage: z.coerce.number().optional().or(z.literal('')),
+  color: z.string().optional(),
+  transmission: TransmissionEnum,
+  fuelType: FuelTypeEnum,
+  description: z.string().optional(),
+  district: DistrictEnum,
+  featured: z.boolean().default(false),
+  status: StatusEnum.default('ACTIVE'),
+  sellerId: z.string().min(1, 'Seller is required'),
+  images: z.array(z.object({
+    url: z.string(),
+    key: z.string(),
+    isPrimary: z.boolean()
+  })).min(1, 'At least one image is required')
+}).transform((data) => ({
+  ...data,
+  mileage: data.mileage === '' ? undefined : data.mileage,
+}))
+
+type CarFormData = z.infer<typeof carFormSchema>
 
 interface CarFormProps {
   car?: {
@@ -95,7 +127,7 @@ export function CarForm({ car, sellers }: CarFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<CarFormData>({
-    resolver: zodResolver(carSchema),
+    resolver: zodResolver(carFormSchema),
     defaultValues: {
       make: car?.make || '',
       model: car?.model || '',
@@ -103,12 +135,12 @@ export function CarForm({ car, sellers }: CarFormProps) {
       price: car?.price || 0,
       mileage: car?.mileage || undefined,
       color: car?.color || '',
-      transmission: car?.transmission as any || 'MANUAL',
-      fuelType: car?.fuelType as any || 'PETROL',
+      transmission: (car?.transmission as any) || 'MANUAL',
+      fuelType: (car?.fuelType as any) || 'PETROL',
       description: car?.description || '',
-      district: car?.district as any || 'Blantyre',
+      district: (car?.district as any) || 'Blantyre',
       featured: car?.featured || false,
-      status: car?.status as any || 'ACTIVE',
+      status: (car?.status as any) || 'ACTIVE',
       sellerId: car?.sellerId || '',
       images: car?.images || []
     }
@@ -216,7 +248,11 @@ export function CarForm({ car, sellers }: CarFormProps) {
                     <FormItem>
                       <FormLabel>Year</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="Enter year" {...field} />
+                        <Input 
+                          type="number" 
+                          placeholder="Enter year" 
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
