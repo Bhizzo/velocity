@@ -1,23 +1,49 @@
 // components/car-detail/similar-cars.tsx
-import { Car, CarImage, Seller } from '@prisma/client'
 import { CarCard } from '@/components/car-card'
 
-type CarWithDetails = Car & {
-  images: CarImage[]
-  seller: Seller
+// Updated type to match serialized car data (with number prices, not Decimal)
+type SerializedCarWithDetails = {
+  id: string
+  make: string
+  model: string
+  year: number
+  price: number // Changed from Decimal to number
+  mileage?: number
+  color?: string
+  transmission: string
+  fuelType: string
+  district: string
+  featured: boolean
+  viewCount: number
+  status: string
+  isFavorited?: boolean // Optional favorite status
+  createdAt: string // Serialized date
+  updatedAt: string // Serialized date
+  expiresAt: string // Serialized date
+  images: Array<{
+    url: string
+    isPrimary: boolean
+  }>
+  seller: {
+    name: string
+    phone: string
+    location: string
+  }
   _count: {
     favorites: number
   }
 }
 
 interface SimilarCarsProps {
-  cars: CarWithDetails[]
-  currentCarId: string
+  cars: SerializedCarWithDetails[]
+  currentCarId?: string // Make optional since we might not always need it
 }
 
 export function SimilarCars({ cars, currentCarId }: SimilarCarsProps) {
-  // Filter out the current car from similar cars
-  const similarCars = cars.filter(car => car.id !== currentCarId)
+  // Filter out the current car from similar cars if currentCarId is provided
+  const similarCars = currentCarId 
+    ? cars.filter(car => car.id !== currentCarId)
+    : cars
 
   if (similarCars.length === 0) {
     return null

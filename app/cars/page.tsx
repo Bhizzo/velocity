@@ -23,6 +23,7 @@ interface SearchParams {
   status?: string
   page?: string
   sort?: string
+  [key: string]: string | undefined // Add index signature for compatibility
 }
 
 async function getFilterOptions() {
@@ -70,7 +71,7 @@ export default async function CarsPage({
         <div className="lg:col-span-1">
           <CarFilters 
             filterOptions={filterOptions}
-            currentFilters={resolvedSearchParams as Record<string, string | undefined>}
+            currentFilters={resolvedSearchParams}
           />
         </div>
 

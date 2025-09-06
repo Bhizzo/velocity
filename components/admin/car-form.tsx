@@ -38,60 +38,52 @@ import {
 } from '@/lib/constants'
 import { Loader2, Save, X } from 'lucide-react'
 
-// Define proper types for the enums
-const TransmissionEnum = z.enum(['MANUAL', 'AUTOMATIC', 'CVT'])
-const FuelTypeEnum = z.enum(['PETROL', 'DIESEL', 'HYBRID', 'ELECTRIC'])
-const StatusEnum = z.enum(['ACTIVE', 'SOLD', 'EXPIRED', 'DRAFT'])
-// Create a proper type for districts - handle readonly array properly
-const DistrictEnum = z.enum([...MALAWI_DISTRICTS] as [string, ...string[]])
+// Define the form data type explicitly
+interface CarFormData {
+  make: string
+  model: string
+  year: number
+  price: number
+  mileage?: number
+  color?: string
+  transmission: 'MANUAL' | 'AUTOMATIC' | 'CVT'
+  fuelType: 'PETROL' | 'DIESEL' | 'HYBRID' | 'ELECTRIC'
+  description?: string
+  district: string
+  featured: boolean
+  status: 'ACTIVE' | 'SOLD' | 'EXPIRED' | 'DRAFT'
+  sellerId: string
+  images: Array<{
+    url: string
+    key: string
+    isPrimary: boolean
+  }>
+}
 
-const carSchema = z.object({
-  make: z.string().min(1, 'Make is required'),
-  model: z.string().min(1, 'Model is required'),
-  year: z.number().min(1900, 'Invalid year').max(new Date().getFullYear() + 1, 'Invalid year'),
-  price: z.number().min(1, 'Price must be greater than 0'),
-  mileage: z.number().optional(),
-  color: z.string().optional(),
-  transmission: TransmissionEnum,
-  fuelType: FuelTypeEnum,
-  description: z.string().optional(),
-  district: DistrictEnum,
-  featured: z.boolean().default(false),
-  status: StatusEnum.default('ACTIVE'),
-  sellerId: z.string().min(1, 'Seller is required'),
-  images: z.array(z.object({
-    url: z.string(),
-    key: z.string(),
-    isPrimary: z.boolean()
-  })).min(1, 'At least one image is required')
-})
-
-// Create the form schema with proper coercion for form inputs
+// Create a validation schema that matches the form data type
 const carFormSchema = z.object({
   make: z.string().min(1, 'Make is required'),
   model: z.string().min(1, 'Model is required'),
-  year: z.coerce.number().min(1900, 'Invalid year').max(new Date().getFullYear() + 1, 'Invalid year'),
-  price: z.coerce.number().min(1, 'Price must be greater than 0'),
-  mileage: z.coerce.number().optional().or(z.literal('')),
+  year: z.number()
+    .min(1900, 'Invalid year')
+    .max(new Date().getFullYear() + 1, 'Invalid year'),
+  price: z.number()
+    .min(1, 'Price must be greater than 0'),
+  mileage: z.number().optional(),
   color: z.string().optional(),
-  transmission: TransmissionEnum,
-  fuelType: FuelTypeEnum,
+  transmission: z.enum(['MANUAL', 'AUTOMATIC', 'CVT']),
+  fuelType: z.enum(['PETROL', 'DIESEL', 'HYBRID', 'ELECTRIC']),
   description: z.string().optional(),
-  district: DistrictEnum,
-  featured: z.boolean().default(false),
-  status: StatusEnum.default('ACTIVE'),
+  district: z.string().min(1, 'District is required'),
+  featured: z.boolean(),
+  status: z.enum(['ACTIVE', 'SOLD', 'EXPIRED', 'DRAFT']),
   sellerId: z.string().min(1, 'Seller is required'),
   images: z.array(z.object({
     url: z.string(),
     key: z.string(),
     isPrimary: z.boolean()
   })).min(1, 'At least one image is required')
-}).transform((data) => ({
-  ...data,
-  mileage: data.mileage === '' ? undefined : data.mileage,
-}))
-
-type CarFormData = z.infer<typeof carFormSchema>
+}) satisfies z.ZodType<CarFormData>
 
 interface CarFormProps {
   car?: {
@@ -135,12 +127,12 @@ export function CarForm({ car, sellers }: CarFormProps) {
       price: car?.price || 0,
       mileage: car?.mileage || undefined,
       color: car?.color || '',
-      transmission: (car?.transmission as any) || 'MANUAL',
-      fuelType: (car?.fuelType as any) || 'PETROL',
+      transmission: (car?.transmission as CarFormData['transmission']) || 'MANUAL',
+      fuelType: (car?.fuelType as CarFormData['fuelType']) || 'PETROL',
       description: car?.description || '',
-      district: (car?.district as any) || 'Blantyre',
+      district: car?.district || 'Blantyre',
       featured: car?.featured || false,
-      status: (car?.status as any) || 'ACTIVE',
+      status: (car?.status as CarFormData['status']) || 'ACTIVE',
       sellerId: car?.sellerId || '',
       images: car?.images || []
     }
@@ -208,7 +200,7 @@ export function CarForm({ car, sellers }: CarFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Make</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select make" />
@@ -250,8 +242,12 @@ export function CarForm({ car, sellers }: CarFormProps) {
                       <FormControl>
                         <Input 
                           type="number" 
-                          placeholder="Enter year" 
-                          {...field}
+                          placeholder="Enter year"
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            field.onChange(value === '' ? 0 : parseInt(value, 10))
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -268,8 +264,12 @@ export function CarForm({ car, sellers }: CarFormProps) {
                       <FormControl>
                         <Input 
                           type="number" 
-                          placeholder="Enter price" 
-                          {...field}
+                          placeholder="Enter price"
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            field.onChange(value === '' ? 0 : parseFloat(value))
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -286,8 +286,12 @@ export function CarForm({ car, sellers }: CarFormProps) {
                       <FormControl>
                         <Input 
                           type="number" 
-                          placeholder="Enter mileage" 
-                          {...field}
+                          placeholder="Enter mileage"
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            field.onChange(value === '' ? undefined : parseInt(value, 10))
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -302,7 +306,11 @@ export function CarForm({ car, sellers }: CarFormProps) {
                     <FormItem>
                       <FormLabel>Color</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter color" {...field} />
+                        <Input 
+                          placeholder="Enter color" 
+                          {...field}
+                          value={field.value || ''}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -315,7 +323,7 @@ export function CarForm({ car, sellers }: CarFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Transmission</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select transmission" />
@@ -340,7 +348,7 @@ export function CarForm({ car, sellers }: CarFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Fuel Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select fuel type" />
@@ -365,7 +373,7 @@ export function CarForm({ car, sellers }: CarFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>District</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select district" />
@@ -390,7 +398,7 @@ export function CarForm({ car, sellers }: CarFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Seller</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select seller" />
@@ -421,7 +429,8 @@ export function CarForm({ car, sellers }: CarFormProps) {
                         placeholder="Enter car description..." 
                         className="resize-none" 
                         rows={4}
-                        {...field} 
+                        {...field}
+                        value={field.value || ''}
                       />
                     </FormControl>
                     <FormDescription>
@@ -444,7 +453,7 @@ export function CarForm({ car, sellers }: CarFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select status" />

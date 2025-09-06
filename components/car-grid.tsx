@@ -17,13 +17,56 @@ interface SearchParams {
   status?: string
   page?: string
   sort?: string
+  [key: string]: string | undefined // Add index signature
 }
 
 interface CarGridProps {
   searchParams: SearchParams // Now receives resolved searchParams, not Promise
 }
 
-async function getCars(searchParams: SearchParams) {
+interface Car {
+  id: string
+  make: string
+  model: string
+  year: number
+  price: number
+  mileage?: number
+  color?: string
+  transmission: string
+  fuelType: string
+  district: string
+  featured: boolean
+  viewCount: number
+  status: string
+  isFavorited?: boolean
+  images: {
+    url: string
+    isPrimary: boolean
+  }[]
+  seller: {
+    name: string
+    phone: string
+    location: string
+  }
+  _count: {
+    favorites: number
+  }
+}
+
+interface PaginationData {
+  page: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+interface ApiResponse {
+  cars: Car[]
+  pagination: PaginationData
+}
+
+async function getCars(searchParams: SearchParams): Promise<ApiResponse> {
   const params = new URLSearchParams()
 
   // Add all search parameters safely
@@ -82,7 +125,7 @@ export async function CarGrid({ searchParams }: CarGridProps) {
 
         {/* Cars Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {cars.map((car: any) => (
+          {cars.map((car) => (
             <CarCard key={car.id} car={car} />
           ))}
         </div>
@@ -92,8 +135,7 @@ export async function CarGrid({ searchParams }: CarGridProps) {
           <CarPagination
             currentPage={pagination.page}
             totalPages={pagination.totalPages}
-            hasNext={pagination.hasNext}
-            hasPrev={pagination.hasPrev}
+            searchParams={searchParams}
           />
         )}
       </div>

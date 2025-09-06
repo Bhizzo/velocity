@@ -20,6 +20,19 @@ import { Slider } from '@/components/ui/slider'
 import { X, Filter, RotateCcw } from 'lucide-react'
 import { TRANSMISSION_OPTIONS, FUEL_TYPE_OPTIONS, formatMWK } from '@/lib/constants'
 
+interface FilterState {
+  q: string
+  make: string
+  district: string
+  transmission: string
+  fuelType: string
+  minPrice: number
+  maxPrice: number
+  minYear: number
+  maxYear: number
+  featured: boolean
+}
+
 interface CarFiltersProps {
   filterOptions: {
     makes: string[]
@@ -32,12 +45,12 @@ export function CarFilters({ filterOptions, currentFilters }: CarFiltersProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<FilterState>({
     q: currentFilters.q || '',
-    make: currentFilters.make || 'all', // Changed default to 'all'
-    district: currentFilters.district || 'all', // Changed default to 'all'
-    transmission: currentFilters.transmission || 'all', // Changed default to 'all'
-    fuelType: currentFilters.fuelType || 'all', // Changed default to 'all'
+    make: currentFilters.make || 'all',
+    district: currentFilters.district || 'all',
+    transmission: currentFilters.transmission || 'all',
+    fuelType: currentFilters.fuelType || 'all',
     minPrice: currentFilters.minPrice ? parseInt(currentFilters.minPrice) : 0,
     maxPrice: currentFilters.maxPrice ? parseInt(currentFilters.maxPrice) : 50000000,
     minYear: currentFilters.minYear ? parseInt(currentFilters.minYear) : 2000,
@@ -49,13 +62,26 @@ export function CarFilters({ filterOptions, currentFilters }: CarFiltersProps) {
     const params = new URLSearchParams()
     
     Object.entries(filters).forEach(([key, value]) => {
-      // Skip "all" values and empty strings
-      if (value && value !== '' && value !== false && value !== 'all') {
-        if (key === 'minPrice' && value === 0) return
-        if (key === 'maxPrice' && value === 50000000) return
-        if (key === 'minYear' && value === 2000) return
-        if (key === 'maxYear' && value === new Date().getFullYear()) return
-        
+      // Handle different types more explicitly
+      const shouldInclude = (() => {
+        if (typeof value === 'boolean') {
+          return value === true // Only include if true
+        }
+        if (typeof value === 'string') {
+          return value !== '' && value !== 'all'
+        }
+        if (typeof value === 'number') {
+          // Skip default values
+          if (key === 'minPrice' && value === 0) return false
+          if (key === 'maxPrice' && value === 50000000) return false
+          if (key === 'minYear' && value === 2000) return false
+          if (key === 'maxYear' && value === new Date().getFullYear()) return false
+          return true
+        }
+        return false
+      })()
+      
+      if (shouldInclude) {
         params.append(key, value.toString())
       }
     })
@@ -71,10 +97,10 @@ export function CarFilters({ filterOptions, currentFilters }: CarFiltersProps) {
   const clearFilters = () => {
     setFilters({
       q: '',
-      make: 'all', // Reset to 'all' instead of empty string
-      district: 'all', // Reset to 'all' instead of empty string
-      transmission: 'all', // Reset to 'all' instead of empty string
-      fuelType: 'all', // Reset to 'all' instead of empty string
+      make: 'all',
+      district: 'all',
+      transmission: 'all',
+      fuelType: 'all',
       minPrice: 0,
       maxPrice: 50000000,
       minYear: 2000,
@@ -84,9 +110,13 @@ export function CarFilters({ filterOptions, currentFilters }: CarFiltersProps) {
     router.push('/cars')
   }
 
-  const activeFilterCount = Object.values(currentFilters).filter(value => 
-    value && value !== '' && value !== 'false' && value !== 'all'
-  ).length
+  const activeFilterCount = Object.entries(currentFilters).filter(([key, value]) => {
+    if (key === 'sort') return false // Don't count sort as an active filter
+    if (typeof value === 'string') {
+      return value !== '' && value !== 'all' && value !== 'false'
+    }
+    return false
+  }).length
 
   return (
     <Card className="sticky top-24">
